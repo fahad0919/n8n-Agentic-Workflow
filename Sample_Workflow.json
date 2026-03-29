@@ -1,0 +1,2010 @@
+{
+  "name": "WIW - European Commission",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "163ea414-f368-4909-91bf-8bfee1358205",
+              "name": "baseUrl",
+              "value": "https://op.europa.eu",
+              "type": "string"
+            },
+            {
+              "id": "284d0359-50c8-4900-99aa-9ff331af7cb1",
+              "name": "locale",
+              "value": "en",
+              "type": "string"
+            },
+            {
+              "id": "4da20e11-6b17-4739-9b35-4c6a362d8060",
+              "name": "combinedParam",
+              "value": "COM/COM",
+              "type": "string"
+            },
+            {
+              "id": "55b95785-db2d-46d0-ace2-b56f9467bd71",
+              "name": "perRequestTimeoutMs",
+              "value": 40000,
+              "type": "number"
+            },
+            {
+              "id": "299c5ecd-eeff-439b-bb95-ff2fc81a1910",
+              "name": "concurrency",
+              "value": 9,
+              "type": "number"
+            },
+            {
+              "id": "b6c8c29a-84a3-4a4b-904a-95a047409602",
+              "name": "institutionName",
+              "value": "European Commission",
+              "type": "string"
+            },
+            {
+              "id": "ac50f93c-d540-4729-9f20-c56f2fd36d2f",
+              "name": "institutionType",
+              "value": "Commission",
+              "type": "string"
+            },
+            {
+              "id": "0e7a872b-f632-49ce-99f1-139a4aa35316",
+              "name": "institutionPublicUrl",
+              "value": "https://op.europa.eu/en/web/who-is-who/organization/-/organization/COM/COM",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -896,
+        16
+      ],
+      "id": "9cdfd8bf-3f06-4b8b-bdfa-95f30fb4e66f",
+      "name": "Config"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $items(\"Config\")[0].json;\nconst baseUrl = cfg.baseUrl || \"https://op.europa.eu\";\nconst locale = cfg.locale || \"en\";\nconst combinedParam = cfg.combinedParam;\nconst institutionName = cfg.institutionName || \"\";\nconst startUrl =\n  `${baseUrl}/o/wiw-webservice/sublevels` +\n  `?WIW_ORGANIZATION_DETAIL_COMBINED_URL_PARAM=${encodeURIComponent(combinedParam)}` +\n  `&WIW_ORGANIZATION_DETAIL_LOCALE_PARAM=${encodeURIComponent(locale)}` +\n  `&WIW_URL_TEMPLATE_PARAM=reduced/subleveloforganization/`;\nreturn [{\n  json: {\n    baseUrl,\n    locale,\n    combinedParam,\n    institutionName,\n    startUrl,\n    perRequestTimeoutMs: Number(cfg.perRequestTimeoutMs || 40000),\n    concurrency: Number(cfg.concurrency || 9),\n    institutionType: cfg.institutionType || \"\",\n    institutionPublicUrl: cfg.institutionPublicUrl || \"\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        16
+      ],
+      "id": "b492c255-aa24-436f-99e7-3a31284dab0a",
+      "name": "Init State"
+    },
+    {
+      "parameters": {
+        "operation": "clear",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Commission_staff",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1607635265,
+          "mode": "list",
+          "cachedResultName": "LatestSnapshot",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=1607635265"
+        },
+        "keepFirstRow": true
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -496,
+        16
+      ],
+      "id": "9cf47129-8274-4b8c-96cd-a52a7a6fdef2",
+      "name": "Clear LatestSnapshot",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_SHEETS_ACCOUNT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "async function main() {\n\nfunction stripHtml(html) {\n  return (html || \"\")\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, \" \")\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, \" \")\n    .replace(/<[^>]*>/g, \" \")\n    .replace(/&nbsp;|&#160;/g, \" \")\n    .replace(/&amp;/g, \"&\")\n    .replace(/&quot;/g, '\"')\n    .replace(/&#39;/g, \"'\")\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\n\nfunction stripOrgCode(label) {\n  return (label || \"\").replace(/^\\s*\\[[^\\]]+\\]\\s*/, \"\").trim();\n}\n\nfunction absolutize(baseUrl, u) {\n  if (!u) return \"\";\n  if (/^https?:\\/\\//i.test(u)) return u;\n  if (u.startsWith(\"//\")) return \"https:\" + u;\n  if (u.startsWith(\"/\")) return baseUrl + u;\n  return baseUrl + \"/\" + u;\n}\n\nfunction extractHref(h) {\n  const m = (h || \"\").match(/href\\s*=\\s*\"([^\"]+)\"/i);\n  return m ? m[1] : \"\";\n}\n\nconst TITLE_RE = new RegExp(\n  '(?:President of the European Commission|Executive Vice-President|Vice-President of the European Commission|' +\n  'High Representative for Foreign Affairs and Security Policy|High Representative|Commissioner for|Commissioner|' +\n  'Secretary-General|Deputy Secretary-General|Director-General|Deputy Director-General|' +\n  'Director of Office|Head of the Private Office|Head of Unit|Head of Office|Head of sector|' +\n  'Head of Division|Head of Cabinet|Head of Department|Head of Programme|Head of Task Force|' +\n  'Head of Administration|Head of Projects|Head of Strategy|Head of Resource|' +\n  'Deputy Head of Unit|Deputy Head of Division|' +\n  'Chief Executive Officer|Chief Operating Officer|Chief Financial Officer|' +\n  'Chief Risk Officer|Chief Compliance Officer|Chief|' +\n  'Managing Director|Deputy Managing Director|' +\n  'Principal Legal Adviser|Acting Principal Legal Adviser|Legal Adviser|Principal|Acting|' +\n  'Digital Transformation Officer|Acting Director|Acting Head|' +\n  'Vice-President|President|Chair of|Chairperson|Chair|' +\n  'Senior Adviser|Senior Manager|Senior Officer|Senior Expert|' +\n  'Adviser|Advisor|Administrator|Coordinator|Manager|Expert|Director|Officer|' +\n  'Deputy Director|Deputy Chair|Deputy|Member of Cabinet|Member|Head' +\n  ')\\\\b', 'i'\n);\n\nfunction parseLabelNames(labelHtml) {\n  const text = stripHtml(labelHtml).trim();\n  const ph = text.match(/(\\+?\\d[\\d\\s\\-()]{6,}\\d)/);\n  const noPhone = text.replace(/(\\+?\\d[\\d\\s\\-()]{6,}\\d)/g, \"\").trim();\n  const noHonorific = noPhone.replace(/\\b(Ms|Mr|Mrs|Dr)\\.?\\s+/gi, \"\").trim();\n  const namePattern = /([A-Z\\xC0-\\xD6\\xD8-\\xDE][a-z\\xE0-\\xFF]+(?:\\s+[A-Z\\xC0-\\xD6\\xD8-\\xDE][a-z\\xE0-\\xFF]+)*\\s+[A-Z\\xC0-\\xD6\\xD8-\\xDE]{2,}(?:\\s+[A-Z\\xC0-\\xD6\\xD8-\\xDE]{2,})*)/g;\n  const matches = [...noHonorific.matchAll(namePattern)];\n  if (!matches.length) {\n    const m2 = noHonorific.match(TITLE_RE);\n    return [{\n      labelName: m2 && m2.index > 0 ? noHonorific.slice(0, m2.index).trim() : noHonorific,\n      labelTitle: m2 ? noHonorific.slice(m2.index).trim() : \"\",\n      phoneFromLabel: ph ? ph[1].trim() : \"\"\n    }];\n  }\n  return matches.map((match, i) => {\n    const nextMatch = matches[i + 1];\n    const titleChunk = nextMatch\n      ? noHonorific.slice(match.index + match[0].length, nextMatch.index)\n      : noHonorific.slice(match.index + match[0].length);\n    return {\n      labelName: match[1].trim(),\n      labelTitle: titleChunk.trim(),\n      phoneFromLabel: ph ? ph[1].trim() : \"\"\n    };\n  });\n}\n\nasync function postOne(url, timeout) {\n  try {\n    return await helpers.httpRequest({\n      method: \"POST\", url, timeout: timeout || 30000, json: true,\n      headers: { \"User-Agent\": \"Mozilla/5.0\", \"x-requested-with\": \"XMLHttpRequest\", \"accept\": \"*/*\" }\n    });\n  } catch { return null; }\n}\n\nconst cfg = $input.first().json;\nconst baseUrl = cfg.baseUrl || \"https://op.europa.eu\";\nconst timeoutMs = Number(cfg.perRequestTimeoutMs || 40000);\n\nconst seen = {};\nconst personJobs = [];\nlet currentLevel = [{ url: cfg.startUrl, selfLabel: \"\", topLevel: \"\", depth: 0 }];\n\nwhile (currentLevel.length > 0) {\n  const toFetch = currentLevel.filter(e => e.url && !seen[e.url]);\n  toFetch.forEach(e => { seen[e.url] = 1; });\n  if (!toFetch.length) break;\n  const levelResults = await Promise.all(\n    toFetch.map(entry => postOne(entry.url, timeoutMs).then(items => ({ entry, items })))\n  );\n  const nextLevel = [];\n  for (const { entry, items } of levelResults) {\n    if (!items) continue;\n    for (const it of items) {\n      const label = stripOrgCode(stripHtml(it && it.label || \"\"));\n      const thisTop = entry.topLevel || label;\n      const nextDepth = entry.depth + 1;\n      const looksLikePerson = /\\b(Ms|Mr|Mrs|Dr)\\b/i.test(label);\n      if (it && it.leaf) {\n        const href = extractHref(it.label || \"\");\n        if (href) {\n          const persons = parseLabelNames(it.label || \"\");\n          for (const p of persons) {\n            personJobs.push({\n              personUrl: absolutize(baseUrl, href),\n              department: entry.selfLabel,\n              topLevel: thisTop,\n              labelName: p.labelName,\n              labelTitle: p.labelTitle,\n              phoneFromLabel: p.phoneFromLabel,\n              baseUrl: cfg.baseUrl,\n              locale: cfg.locale,\n              institutionName: cfg.institutionName,\n              institutionType: cfg.institutionType,\n              institutionPublicUrl: cfg.institutionPublicUrl,\n              combinedParam: cfg.combinedParam,\n              perRequestTimeoutMs: cfg.perRequestTimeoutMs,\n              concurrency: cfg.concurrency\n            });\n          }\n        }\n      } else if (looksLikePerson) {\n        const href = extractHref(it.label || \"\");\n        if (href) {\n          const persons = parseLabelNames(it.label || \"\");\n          for (const p of persons) {\n            personJobs.push({\n              personUrl: absolutize(baseUrl, href),\n              department: entry.selfLabel,\n              topLevel: thisTop,\n              labelName: p.labelName,\n              labelTitle: p.labelTitle,\n              phoneFromLabel: p.phoneFromLabel,\n              baseUrl: cfg.baseUrl,\n              locale: cfg.locale,\n              institutionName: cfg.institutionName,\n              institutionType: cfg.institutionType,\n              institutionPublicUrl: cfg.institutionPublicUrl,\n              combinedParam: cfg.combinedParam,\n              perRequestTimeoutMs: cfg.perRequestTimeoutMs,\n              concurrency: cfg.concurrency\n            });\n          }\n        }\n      } else {\n        const nextUrl = absolutize(baseUrl, it && it.io);\n        if (nextUrl && !seen[nextUrl]) {\n          nextLevel.push({ url: nextUrl, selfLabel: label, topLevel: thisTop, depth: nextDepth });\n        }\n      }\n    }\n  }\n  currentLevel = nextLevel;\n}\n\nif (!personJobs.length) {\n  throw new Error(\"Org tree crawl returned 0 people. Check startUrl / network.\");\n}\n\nreturn personJobs.map(j => ({ json: j }));\n\n} // end main\nreturn await main();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        16
+      ],
+      "id": "eee2dc5a-9bef-4895-99c1-319ab1b4eae1",
+      "name": "Crawl Org Tree"
+    },
+    {
+      "parameters": {
+        "batchSize": 50,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        0,
+        16
+      ],
+      "id": "loop-over-items-com",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "jsCode": "async function main() {\n\nfunction stripHtml(html) {\n  return (html || \"\")\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, \" \")\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, \" \")\n    .replace(/<[^>]*>/g, \" \")\n    .replace(/&nbsp;|&#160;/g, \" \")\n    .replace(/&amp;/g, \"&\")\n    .replace(/&quot;/g, '\"')\n    .replace(/&#39;/g, \"'\")\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\n\nfunction extractEntityIdFromPersonUrl(url) {\n  const m = (url || \"\").match(/\\/person\\/-\\/person\\/([^/]+)\\/([^/?#]+)/i);\n  return m ? `${m[1]}/${m[2]}` : \"\";\n}\n\nfunction enc(v) { return encodeURIComponent(v == null ? \"\" : String(v)); }\n\nfunction buildVcardUrl(baseUrl, entityId, lang) {\n  const l = (lang || \"en\").toLowerCase();\n  const qp = [\n    [\"_eu_europa_publications_portlet_wiw_entitydetailactions_EntityDetailActionsPortlet_actionName\", \"downloadVcardAction\"],\n    [\"_eu_europa_publications_portlet_wiw_entitydetailactions_EntityDetailActionsPortlet_displayContextParam\", \"PERSON\"],\n    [\"_eu_europa_publications_portlet_wiw_entitydetailactions_EntityDetailActionsPortlet_entityId\", entityId],\n    [\"_eu_europa_publications_portlet_wiw_entitydetailactions_EntityDetailActionsPortlet_language\", l],\n    [\"_eu_europa_publications_portlet_wiw_entitydetailactions_EntityDetailActionsPortlet_wiwEntityIdParam\", entityId],\n    [\"p_p_id\", \"eu_europa_publications_portlet_wiw_entitydetailactions_EntityDetailActionsPortlet\"],\n    [\"p_p_lifecycle\", \"2\"],\n    [\"p_p_state\", \"exclusive\"]\n  ].map(([k, v]) => `${enc(k)}=${enc(v)}`).join(\"&\");\n  return `${baseUrl}/en/web/who-is-who/person?${qp}`;\n}\n\nfunction unfoldVcf(vcf) {\n  return String(vcf || \"\")\n    .replace(/\\r\\n[ \\t]/g, \"\")\n    .replace(/\\n[ \\t]/g, \"\")\n    .trim();\n}\n\nfunction parseEmailFromVcf(vcf) {\n  if (!vcf) return \"\";\n  const s = unfoldVcf(vcf);\n  const lines = s.split(/\\r?\\n/);\n  for (const line of lines) {\n    if (!/^EMAIL/i.test(line)) continue;\n    const idx = line.indexOf(\":\");\n    if (idx === -1) continue;\n    const val = line.slice(idx + 1).trim();\n    if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i.test(val)) return val;\n  }\n  return \"\";\n}\n\nfunction decodeHtmlEntitiesBasic(s) {\n  return String(s || \"\")\n    .replace(/&amp;/g, \"&\").replace(/&quot;/g, '\"').replace(/&#39;/g, \"'\")\n    .replace(/&lt;/g, \"<\").replace(/&gt;/g, \">\").replace(/&nbsp;|&#160;/g, \" \");\n}\n\nfunction parseEmailFromHtml(html) {\n  if (!html) return \"\";\n  const m1 = String(html).match(/href\\s*=\\s*(?:\"|')?\\s*mailto:([^\"'\\s?>&]+)[^\"'\\s?>]*/i);\n  if (m1 && m1[1]) { try { return decodeURIComponent(m1[1]).trim(); } catch { return String(m1[1]).trim(); } }\n  const m2 = String(html).match(/itemprop\\s*=\\s*[\"']email[\"'][^>]*>\\s*([^<\\s]+@[^<\\s]+)\\s*</i)\n          || String(html).match(/itemprop\\s*=\\s*[\"']email[\"'][^>]*content\\s*=\\s*[\"']([^\"']+@[^\"']+)[\"']/i);\n  if (m2 && m2[1]) return String(m2[1]).trim();\n  const m3 = String(html).match(/data-email\\s*=\\s*[\"']([^\"']+@[^\"']+)[\"']/i);\n  if (m3 && m3[1]) return String(m3[1]).trim();\n  const text = stripHtml(decodeHtmlEntitiesBasic(html));\n  const m4 = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i);\n  return m4 ? m4[0].trim() : \"\";\n}\n\nfunction cleanEmpty(val) {\n  if (val === null || val === undefined) return \"\";\n  const s = String(val).trim();\n  return s.toLowerCase() === \"empty\" ? \"\" : s;\n}\n\nconst TITLE_RE = new RegExp(\n  '(?:President of the European Commission|Executive Vice-President|Vice-President of the European Commission|' +\n  'High Representative for Foreign Affairs and Security Policy|High Representative|Commissioner for|Commissioner|' +\n  'Secretary-General|Deputy Secretary-General|Director-General|Deputy Director-General|' +\n  'Director of Office|Head of the Private Office|Head of Unit|Head of Office|Head of sector|' +\n  'Head of Division|Head of Cabinet|Head of Department|Head of Programme|Head of Task Force|' +\n  'Head of Administration|Head of Projects|Head of Strategy|Head of Resource|' +\n  'Deputy Head of Unit|Deputy Head of Division|' +\n  'Chief Executive Officer|Chief Operating Officer|Chief Financial Officer|' +\n  'Chief Risk Officer|Chief Compliance Officer|Chief|' +\n  'Managing Director|Deputy Managing Director|' +\n  'Principal Legal Adviser|Acting Principal Legal Adviser|Legal Adviser|Principal|Acting|' +\n  'Digital Transformation Officer|Acting Director|Acting Head|' +\n  'Vice-President|President|Chair of|Chairperson|Chair|' +\n  'Senior Adviser|Senior Manager|Senior Officer|Senior Expert|' +\n  'Adviser|Advisor|Administrator|Coordinator|Manager|Expert|Director|Officer|' +\n  'Deputy Director|Deputy Chair|Deputy|Member of Cabinet|Member|Head' +\n  ')\\\\b', 'i'\n);\n\nfunction determineFunctionType(level) {\n  const t = (level || \"\").toLowerCase();\n  if (t.includes(\"commissioner\") || t.includes(\"vice-president\") || t.includes(\"vice president\") || t.includes(\"president of the european\")) {\n    return \"Commissioner\";\n  }\n  return \"EC civil servant\";\n}\n\nfunction splitNameAndLevel(nameRaw, existingLevel) {\n  if (existingLevel && existingLevel.trim())\n    return { name: (nameRaw || \"\").trim(), level: existingLevel.trim() };\n  const s = (nameRaw || \"\").trim();\n  const m = s.match(TITLE_RE);\n  if (m && m.index > 0)\n    return { name: s.slice(0, m.index).trim().replace(/,\\s*$/, \"\"), level: s.slice(m.index).trim() };\n  return { name: s, level: \"\" };\n}\n\nfunction safeTextBetween(html, re) {\n  const m = (html || \"\").match(re);\n  return m ? stripHtml(m[1]) : \"\";\n}\n\nfunction extractDdByDt(html, dtLabel) {\n  const safe = dtLabel.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\");\n  const re = new RegExp(`<dt[^>]*>\\\\s*${safe}\\\\s*<\\/dt>\\\\s*<dd[^>]*>([\\\\s\\\\S]*?)<\\/dd>`, \"i\");\n  const m = (html || \"\").match(re);\n  return m ? stripHtml(m[1]) : \"\";\n}\n\nfunction extractDGFromText(text) {\n  const t = (text || \"\").trim();\n  if (!t) return \"\";\n  if (/college of commissioners/i.test(t)) return \"College of Commissioners\";\n  if (/\\bcabinets?\\b/i.test(t)) return \"Cabinets\";\n  let m = t.match(/\\((COM_[A-Z0-9_]+)\\)/i);\n  if (m) {\n    const code = m[1].toUpperCase();\n    if (code === \"COM_COLL\") return \"College of Commissioners\";\n    if (code.includes(\"CAB\")) return \"Cabinets\";\n    return code.replace(/^COM_/, \"\");\n  }\n  m = t.match(/\\(DG\\s*([^)]+)\\)/i);\n  if (m) return `DG ${m[1].trim()}`;\n  m = t.match(/\\bDG\\s+([A-Z0-9][A-Z0-9 _-]{1,})\\b/i);\n  if (m) return `DG ${m[1].trim()}`;\n  m = t.match(/\\bDirectorate-General\\s+for\\s+([A-Za-z\\xC0-\\xFF0-9 ,.'\\-]+)/i);\n  if (m) return `Directorate-General for ${m[1].trim()}`;\n  m = t.match(/\\b(EMPL|COMP|SANTE|HR|IAS|PMO|TRADE|ENER|MOVE|EAC|BUDG|FISMA|GROW|HOME|JUST|MARE|NEAR|REGIO|RTD|SG|CLIMA|ENV|DIGIT|DEFIS|ECHO|JRC|COMM|CNECT)\\b/i);\n  if (m) return m[1].toUpperCase();\n  return \"\";\n}\n\nfunction countryFromAffiliation(aff, htmlText) {\n  const a = stripHtml(aff || \"\"), t = stripHtml(htmlText || \"\");\n  let m = a.match(/\\bAffiliation\\b[:\\s-]*([A-Za-z\\xC0-\\xFF .'\\-]{3,})/i)\n       || t.match(/\\bAffiliation\\b[:\\s-]*([A-Za-z\\xC0-\\xFF .'\\-]{3,})/i)\n       || a.match(/\\bNationality\\b[:\\s-]*([A-Za-z\\xC0-\\xFF .'\\-]{3,})/i)\n       || t.match(/\\bNationality\\b[:\\s-]*([A-Za-z\\xC0-\\xFF .'\\-]{3,})/i);\n  if (m) return m[1].trim();\n  if (a && a.length <= 40 && /^[A-Za-z\\xC0-\\xFF .'\\-]+$/.test(a)) return a.trim();\n  return \"\";\n}\n\nfunction countryFromAddress(addressText) {\n  const m = stripHtml(addressText || \"\").match(/\\(([^()]{3,60})\\)\\s*$/);\n  return m ? m[1].trim() : \"\";\n}\n\nfunction extractCountryFromLeftCard(html) {\n  if (!html) return \"\";\n  const m = html.match(/Headshot of[^<]*<\\/[^>]+>\\s*<[^>]*>\\s*([A-Z][A-Za-z\\xC0-\\xFF' \\-]{2,60})\\s*</i);\n  if (m) return stripHtml(m[1]).trim();\n  const m2 = html.match(/Headshot of[\\s\\S]{0,300}?\\b([A-Z][A-Za-z\\xC0-\\xFF' \\-]{2,60})\\b\\s*</i);\n  return m2 ? stripHtml(m2[1]).trim() : \"\";\n}\n\nfunction countryFromHeader(html) {\n  if (!html) return \"\";\n  const m = html.match(/class=\"[^\"]*(?:country|nationality)[^\"]*\"[^>]*>\\s*([^<]{2,60})\\s*</i);\n  return m ? stripHtml(m[1]).trim() : \"\";\n}\n\nfunction extractCategory2FromHtml(html) {\n  if (!html) return \"\";\n  for (const label of [\"Policy area\",\"Policy areas\",\"Areas of responsibility\",\"Area of responsibility\",\"Portfolio\",\"Domain\"]) {\n    const r = new RegExp(`<dt[^>]*>\\\\s*${label.replace(/[.*+?^${}()|[\\\\]\\\\\\\\]/g,\"\\\\$&\")}\\\\s*<\\/dt>\\\\s*<dd[^>]*>([\\\\s\\\\S]*?)<\\/dd>`,\"i\");\n    const m = html.match(r);\n    if (m) {\n      const dd = m[1] || \"\";\n      const items = [...dd.matchAll(/<li[^>]*>([\\s\\S]*?)<\\/li>/gi)].map(x => stripHtml(x[1])).filter(Boolean);\n      if (items.length) return items.join(\", \");\n      const links = [...dd.matchAll(/<a[^>]*>([\\s\\S]*?)<\\/a>/gi)].map(x => stripHtml(x[1])).filter(Boolean);\n      if (links.length) return links.join(\", \");\n      return stripHtml(dd);\n    }\n  }\n  return \"\";\n}\n\nfunction extractHierarchyFromHtml(html) {\n  const m = (html || \"\").match(/id=\"firstPosition\"[\\s\\S]*?<\\/div>/i)\n         || (html || \"\").match(/id=\"positions\"[\\s\\S]*?<\\/div>/i)\n         || (html || \"\").match(/class=\"[^\"]*position[^\"]*\"[\\s\\S]*?<\\/div>/i);\n  if (!m) return [];\n  return [...m[0].matchAll(/<a[^>]*>([\\s\\S]*?)<\\/a>/gi)]\n    .map(x => stripHtml(x[1]))\n    .filter(Boolean)\n    .filter(t => t.toUpperCase() !== \"FORMER\");\n}\n\nasync function httpGet(url, timeout) {\n  return await helpers.httpRequest({\n    method: \"GET\", url, timeout: timeout || 40000, json: false,\n    headers: { \"User-Agent\": \"Mozilla/5.0\", \"accept\": \"text/html, text/plain, */*\" }\n  });\n}\n\nasync function mapPool(items, concurrency, worker) {\n  const results = new Array(items.length);\n  let idx = 0;\n  async function runner() {\n    while (true) {\n      const i = idx++;\n      if (i >= items.length) break;\n      try { results[i] = await worker(items[i], i); } catch { results[i] = null; }\n    }\n  }\n  const n = Math.max(1, Math.min(concurrency, items.length));\n  await Promise.all(Array.from({ length: n }, () => runner()));\n  return results;\n}\n\nconst allItems = $input.all();\nconst cfg = allItems[0].json;\nconst baseUrl = cfg.baseUrl || \"https://op.europa.eu\";\nconst locale = (cfg.locale || \"en\").toLowerCase();\nconst timeoutMs = Number(cfg.perRequestTimeoutMs || 40000);\nconst concurrency = Number(cfg.concurrency || 9);\nconst personJobs = allItems.map(i => i.json);\n\nconst results = await mapPool(personJobs, concurrency, async (job) => {\n  const personUrl = job.personUrl;\n  const externalId = extractEntityIdFromPersonUrl(personUrl);\n  let html = \"\";\n  try { html = await httpGet(personUrl, timeoutMs); } catch {}\n\n  // Email: HTML first, then vCard\n  let email = parseEmailFromHtml(html) || \"\";\n  if (!email && externalId) {\n    try { email = parseEmailFromVcf(await httpGet(buildVcardUrl(baseUrl, externalId, locale), timeoutMs)) || \"\"; } catch {}\n    if (!email && locale !== \"en\") {\n      try { email = parseEmailFromVcf(await httpGet(buildVcardUrl(baseUrl, externalId, \"en\"), timeoutMs)) || \"\"; } catch {}\n    }\n  }\n\n  const jobTitle = safeTextBetween(html, /itemprop=\"jobTitle\"[^>]*>([\\s\\S]*?)<\\/span>/i)\n                || safeTextBetween(html, /itemprop=\"jobTitle\"[^>]*>([\\s\\S]*?)<\\/div>/i);\n  const phone = safeTextBetween(html, /itemprop=\"telephone\"[^>]*>([\\s\\S]*?)<\\/div>/i);\n  const affiliation = safeTextBetween(html, /id=\"affiliation\"[^>]*>([\\s\\S]*?)<\\/div>/i);\n  const address = safeTextBetween(html, /class=\"address-addresses[\\s\\S]*?section\"[^>]*>([\\s\\S]*?)<\\/div>/i);\n  const affiliationDl = extractDdByDt(html, \"Affiliation\") || extractDdByDt(html, \"Nationality\");\n  const hierarchy = extractHierarchyFromHtml(html);\n  let directBoss = \"\";\n  for (let i = hierarchy.length - 1; i >= 0; i--) {\n    if (hierarchy[i] && hierarchy[i].trim()) { directBoss = hierarchy[i].trim(); break; }\n  }\n  const levelFromDl = extractDdByDt(html, \"Position\") || extractDdByDt(html, \"Function\") || extractDdByDt(html, \"Job title\");\n  const split = splitNameAndLevel(job.labelName || \"\", jobTitle || job.labelTitle || \"\");\n  const finalName = cleanEmpty(split.name.replace(/^(Ms|Mr|Mrs|Dr)\\.?\\s+/i, \"\").replace(/\\s{2,}/g, \" \").trim());\n  const finalLevel = cleanEmpty(split.level || levelFromDl);\n  const department = cleanEmpty(job.department);\n  const finalPhone = phone.trim() || (job.phoneFromLabel || \"\");\n  const ft = determineFunctionType(finalLevel);\n\n  // DG from topLevel (never from person page to avoid name contamination)\n  const dgCandidate = cleanEmpty(job.topLevel);\n  const dg = TITLE_RE.test(dgCandidate) || /\\b(Ms|Mr|Mrs|Dr)\\b/i.test(dgCandidate) ? \"\" : (extractDGFromText(dgCandidate) || dgCandidate);\n\n  const country = extractCountryFromLeftCard(html) || countryFromAddress(address) || countryFromAffiliation(affiliation || affiliationDl, html) || countryFromHeader(html) || \"\";\n\n  return {\n    ExternalId: cleanEmpty(externalId),\n    FunctionType: ft,\n    Individual_ID_EUmatrix: cleanEmpty(externalId),\n    AccessibilityType: \"premium\",\n    Name: finalName,\n    Role: ft,\n    Level: finalLevel,\n    \"Direct boss\": cleanEmpty(directBoss),\n    Department: department,\n    DG: cleanEmpty(dg),\n    Institution: cleanEmpty(cfg.institutionName),\n    \"Institution URL\": cleanEmpty(cfg.institutionPublicUrl || `${baseUrl}/en/web/who-is-who/organization/-/organization/${cfg.combinedParam || \"\"}`),\n    Country: cleanEmpty(country),\n    Party: \"\",\n    \"Party ExternalId\": \"\",\n    \"Political group\": \"\",\n    \"Political group ExternalId\": \"\",\n    \"Political / Administrative\": ft === \"Commissioner\" ? \"Political\" : \"Administrative\",\n    Email: cleanEmpty(email),\n    Phone: finalPhone ? (\"'\" + finalPhone) : \"\",\n    \"Category 1\": \"\", \"Category ID1\": \"\",\n    \"Category 2\": cleanEmpty(extractCategory2FromHtml(html)), \"Category ID2\": \"\",\n    \"Category 3\": \"\", \"Category ID3\": \"\",\n    \"Category 4\": \"\", \"Category ID4\": \"\",\n    \"Category 5\": \"\", \"Category ID5\": \"\",\n    \"Profile URL\": cleanEmpty(personUrl)\n  };\n});\n\nconst rows = results.filter(Boolean);\nreturn rows.map(r => ({ json: r }));\n\n} // end main\nreturn await main();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        16
+      ],
+      "id": "fetch-persons-com",
+      "name": "Fetch Persons"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Commission_staff",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1607635265,
+          "mode": "list",
+          "cachedResultName": "LatestSnapshot",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=1607635265"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ExternalId": "={{ $json.ExternalId }}",
+            "FunctionType": "={{ $json.FunctionType }}",
+            "Individual_ID_EUmatrix": "={{ $json.Individual_ID_EUmatrix }}",
+            "AccessibilityType": "={{ $json.AccessibilityType }}",
+            "Name": "={{ $json.Name }}",
+            "Role": "={{ $json.Role }}",
+            "Level": "={{ $json.Level }}",
+            "Direct boss": "={{ $json['Direct boss'] }}",
+            "Department": "={{ $json.Department }}",
+            "DG": "={{ $json.DG }}",
+            "Institution": "={{ $json.Institution }}",
+            "Institution URL": "={{ $json['Institution URL'] }}",
+            "Country": "={{ $json.Country }}",
+            "Party": "={{ $json.Party }}",
+            "Party ExternalId": "={{ $json['Party ExternalId'] }}",
+            "Political group": "={{ $json['Political group'] }}",
+            "Political group ExternalId": "={{ $json['Political group ExternalId'] }}",
+            "Political / Administrative": "={{ $json['Political / Administrative'] }}",
+            "Email": "={{ $json.Email }}",
+            "Phone": "={{ $json.Phone }}",
+            "Category 1": "={{ $json['Category 1'] }}",
+            "Category ID1": "={{ $json['Category ID1'] }}",
+            "Category 2": "={{ $json['Category 2'] }}",
+            "Category ID2": "={{ $json['Category ID2'] }}",
+            "Category 3": "={{ $json['Category 3'] }}",
+            "Category ID3": "={{ $json['Category ID3'] }}",
+            "Category 4": "={{ $json['Category 4'] }}",
+            "Category ID4": "={{ $json['Category ID4'] }}",
+            "Category 5": "={{ $json['Category 5'] }}",
+            "Category ID5": "={{ $json['Category ID5'] }}",
+            "Profile URL": "={{ $json['Profile URL'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "ExternalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "FunctionType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Individual_ID_EUmatrix",
+              "displayName": "Individual_ID_EUmatrix",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "AccessibilityType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Role",
+              "displayName": "Role",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Level",
+              "displayName": "Level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Direct boss",
+              "displayName": "Direct boss",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DG",
+              "displayName": "DG",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "Institution",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Institution URL",
+              "displayName": "Institution URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Party",
+              "displayName": "Party",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Party ExternalId",
+              "displayName": "Party ExternalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Political group",
+              "displayName": "Political group",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Political group ExternalId",
+              "displayName": "Political group ExternalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Political / Administrative",
+              "displayName": "Political / Administrative",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 1",
+              "displayName": "Category 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID1",
+              "displayName": "Category ID1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 2",
+              "displayName": "Category 2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID2",
+              "displayName": "Category ID2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 3",
+              "displayName": "Category 3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID3",
+              "displayName": "Category ID3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 4",
+              "displayName": "Category 4",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID4",
+              "displayName": "Category ID4",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 5",
+              "displayName": "Category 5",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID5",
+              "displayName": "Category ID5",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Profile URL",
+              "displayName": "Profile URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "useAppend": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        576,
+        16
+      ],
+      "id": "8af161da-c350-4634-b463-439ea0626c10",
+      "name": "LatestSnapshot",
+      "executeOnce": false,
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_SHEETS_ACCOUNT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Commission_staff",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 851982518,
+          "mode": "list",
+          "cachedResultName": "History",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=851982518"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        864,
+        16
+      ],
+      "id": "d33034c0-4b0f-4ece-8a65-5942d98cc5bf",
+      "name": "Read History",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_SHEETS_ACCOUNT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "clear",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Commission_staff"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 668432384,
+          "mode": "list",
+          "cachedResultName": "New_Only"
+        },
+        "keepFirstRow": true
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1152,
+        16
+      ],
+      "id": "7880e792-e201-4fda-b8e4-5715b4022e0b",
+      "name": "Clean New",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_SHEETS_ACCOUNT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const SNAPSHOT_NODE = \"Loop Over Items\";\nconst HISTORY_NODE  = \"Read History\";\nfunction norm(v) { return String(v ?? \"\").trim().toLowerCase().replace(/\\s+/g, \" \"); }\nfunction normPhone(v) {\n  const s = String(v ?? \"\").trim(); if (!s) return \"\";\n  let c = s.replace(/[^\\d+]/g, \"\"); c = c.replace(/^\\+{2,}/, \"+\"); return c;\n}\nfunction normId(v) { return String(v ?? \"\").trim().replace(/\\s+/g, \"\"); }\nfunction pickFirst(obj, keys) {\n  for (const k of keys) { const val = obj?.[k]; if (val !== undefined && val !== null && String(val).trim() !== \"\") return val; } return \"\";\n}\nfunction normalizeInstitution(inst) {\n  const s = (inst || \"\").toLowerCase();\n  if (s.includes(\"parliament\")) return \"european_parliament\";\n  if (s.includes(\"commission\")) return \"european_commission\";\n  if (s.includes(\"council of the european union\")) return \"council_eu\";\n  if (s.includes(\"european council\")) return \"european_council\";\n  return \"unknown\";\n}\nfunction matchKey(row) {\n  const inst = normalizeInstitution(pickFirst(row, [\"Institution\", \"institution\"]));\n  const id = normId(pickFirst(row, [\"ExternalId\", \"externalId\", \"Individual_ID_EUmatrix\", \"individual_id_eumatrix\"]));\n  if (id) return `inst:${inst}|id:${id}`;\n  const email = norm(pickFirst(row, [\"Email\", \"email\"]));\n  if (email) return `inst:${inst}|email:${email}`;\n  const phone = normPhone(pickFirst(row, [\"Phone\", \"phone\"]));\n  if (phone) return `inst:${inst}|phone:${phone}`;\n  const name = norm(pickFirst(row, [\"Name\", \"name\"]));\n  if (name) return `inst:${inst}|name:${name}`;\n  return \"\";\n}\nfunction safeItems(nodeName) {\n  try { return ($items(nodeName) || []).map(i => i.json).filter(Boolean); } catch { return []; }\n}\nconst snapshotRows = safeItems(SNAPSHOT_NODE);\nconst historyRows  = safeItems(HISTORY_NODE);\nconst historyKeys = new Set();\nfor (const r of historyRows) { const k = matchKey(r); if (k) historyKeys.add(k); }\nconst newRows = [], newKeys = [], seenSnapshotKeys = new Set();\nlet snapshotNoKey = 0, snapshotKeyCollisions = 0;\nfor (const r of snapshotRows) {\n  const k = matchKey(r);\n  if (!k) { snapshotNoKey++; continue; }\n  if (seenSnapshotKeys.has(k)) snapshotKeyCollisions++; else seenSnapshotKeys.add(k);\n  if (!historyKeys.has(k)) { newRows.push(r); newKeys.push(k); }\n}\nreturn [{ json: { latestCount: snapshotRows.length, historyCount: historyRows.length, newCount: newRows.length, newKeys, newRows, snapshotNoKey, snapshotKeyCollisions } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        16
+      ],
+      "id": "18199878-56de-4693-9893-7de6de852880",
+      "name": "Filter New",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const SNAPSHOT_NODE = \"Loop Over Items\";\nconst HISTORY_NODE  = \"Read History\";\nfunction norm(v) { return String(v ?? \"\").trim().toLowerCase().replace(/\\s+/g, \" \"); }\nfunction normPhone(v) {\n  const s = String(v ?? \"\").trim(); if (!s) return \"\";\n  let c = s.replace(/[^\\d+]/g, \"\"); c = c.replace(/^\\+{2,}/, \"+\"); return c;\n}\nfunction normId(v) { return String(v ?? \"\").trim().replace(/\\s+/g, \"\"); }\nfunction pickFirst(obj, keys) {\n  for (const k of keys) { const val = obj?.[k]; if (val !== undefined && val !== null && String(val).trim() !== \"\") return val; } return \"\";\n}\nfunction normalizeInstitution(inst) {\n  const s = (inst || \"\").toLowerCase();\n  if (s.includes(\"parliament\")) return \"european_parliament\";\n  if (s.includes(\"commission\")) return \"european_commission\";\n  if (s.includes(\"council of the european union\")) return \"council_eu\";\n  if (s.includes(\"european council\")) return \"european_council\";\n  return \"unknown\";\n}\nfunction matchKey(row) {\n  const inst = normalizeInstitution(pickFirst(row, [\"Institution\", \"institution\"]));\n  const id = normId(pickFirst(row, [\"ExternalId\", \"externalId\", \"Individual_ID_EUmatrix\", \"individual_id_eumatrix\"]));\n  if (id) return `inst:${inst}|id:${id}`;\n  const email = norm(pickFirst(row, [\"Email\", \"email\"]));\n  if (email) return `inst:${inst}|email:${email}`;\n  const phone = normPhone(pickFirst(row, [\"Phone\", \"phone\"]));\n  if (phone) return `inst:${inst}|phone:${phone}`;\n  const name = norm(pickFirst(row, [\"Name\", \"name\"]));\n  if (name) return `inst:${inst}|name:${name}`;\n  return \"\";\n}\nfunction safeItems(nodeName) {\n  try { return ($items(nodeName) || []).map(i => i.json).filter(Boolean); } catch { return []; }\n}\nconst snapshotRows = safeItems(SNAPSHOT_NODE);\nconst historyRows  = safeItems(HISTORY_NODE);\nconst snapshotKeys = new Set();\nfor (const r of snapshotRows) { const k = matchKey(r); if (k) snapshotKeys.add(k); }\nconst missingRows = [], missingKeys = [];\nlet historyNoKey = 0;\nfor (const r of historyRows) {\n  const k = matchKey(r);\n  if (!k) { historyNoKey++; continue; }\n  if (!snapshotKeys.has(k)) { missingRows.push(r); missingKeys.push(k); }\n}\nreturn [{ json: { snapshotCount: snapshotRows.length, historyCount: historyRows.length, missingCount: missingRows.length, missingKeys, missingRows, historyNoKey } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1072,
+        496
+      ],
+      "id": "f8397c62-064b-4513-b320-cfaba1fd3fe6",
+      "name": "Filter Missing"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1536,
+        16
+      ],
+      "id": "11960e3d-45a1-444d-a18c-d70fda191c57",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const first = $input.first();\nconst rows = (first && first.json && Array.isArray(first.json.newRows)) ? first.json.newRows : [];\nreturn rows.map(r => ({ json: r }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1728,
+        16
+      ],
+      "id": "7c7697ab-fa0e-4a7f-b761-6a8523127795",
+      "name": "Expand New Rows"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Commission_staff"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 668432384,
+          "mode": "list",
+          "cachedResultName": "New_Only"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ExternalId": "={{ $json.ExternalId }}",
+            "FunctionType": "={{ $json.FunctionType }}",
+            "Individual_ID_EUmatrix": "={{ $json.Individual_ID_EUmatrix }}",
+            "AccessibilityType": "={{ $json.AccessibilityType }}",
+            "Name": "={{ $json.Name }}",
+            "Role": "={{ $json.Role }}",
+            "Level": "={{ $json.Level }}",
+            "Direct boss": "={{ $json['Direct boss'] }}",
+            "Department": "={{ $json.Department }}",
+            "DG": "={{ $json.DG }}",
+            "Institution": "={{ $json.Institution }}",
+            "Institution URL": "={{ $json['Institution URL'] }}",
+            "Country": "={{ $json.Country }}",
+            "Party": "={{ $json.Party }}",
+            "Party ExternalId": "={{ $json['Party ExternalId'] }}",
+            "Political group": "={{ $json['Political group'] }}",
+            "Political group ExternalId": "={{ $json['Political group ExternalId'] }}",
+            "Political / Administrative": "={{ $json['Political / Administrative'] }}",
+            "Email": "={{ $json.Email }}",
+            "Phone": "={{ $json.Phone }}",
+            "Category 1": "={{ $json['Category 1'] }}",
+            "Category ID1": "={{ $json['Category ID1'] }}",
+            "Category 2": "={{ $json['Category 2'] }}",
+            "Category ID2": "={{ $json['Category ID2'] }}",
+            "Category 3": "={{ $json['Category 3'] }}",
+            "Category ID3": "={{ $json['Category ID3'] }}",
+            "Category 4": "={{ $json['Category 4'] }}",
+            "Category ID4": "={{ $json['Category ID4'] }}",
+            "Category 5": "={{ $json['Category 5'] }}",
+            "Category ID5": "={{ $json['Category ID5'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "ExternalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "FunctionType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Individual_ID_EUmatrix",
+              "displayName": "Individual_ID_EUmatrix",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "AccessibilityType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Role",
+              "displayName": "Role",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Level",
+              "displayName": "Level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Direct boss",
+              "displayName": "Direct boss",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DG",
+              "displayName": "DG",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "Institution",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Institution URL",
+              "displayName": "Institution URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Party",
+              "displayName": "Party",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Party ExternalId",
+              "displayName": "Party ExternalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Political group",
+              "displayName": "Political group",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Political group ExternalId",
+              "displayName": "Political group ExternalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Political / Administrative",
+              "displayName": "Political / Administrative",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 1",
+              "displayName": "Category 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID1",
+              "displayName": "Category ID1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 2",
+              "displayName": "Category 2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID2",
+              "displayName": "Category ID2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 3",
+              "displayName": "Category 3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID3",
+              "displayName": "Category ID3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 4",
+              "displayName": "Category 4",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID4",
+              "displayName": "Category ID4",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 5",
+              "displayName": "Category 5",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID5",
+              "displayName": "Category ID5",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "useAppend": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1920,
+        16
+      ],
+      "id": "9576730b-7224-431c-8fa9-b0fd221a0718",
+      "name": "Add New Only",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_SHEETS_ACCOUNT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Commission_staff"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 851982518,
+          "mode": "list",
+          "cachedResultName": "History"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ExternalId": "={{ $json.ExternalId }}",
+            "FunctionType": "={{ $json.FunctionType }}",
+            "Individual_ID_EUmatrix": "={{ $json.Individual_ID_EUmatrix }}",
+            "AccessibilityType": "={{ $json.AccessibilityType }}",
+            "Name": "={{ $json.Name }}",
+            "Role": "={{ $json.Role }}",
+            "Level": "={{ $json.Level }}",
+            "Direct boss": "={{ $json['Direct boss'] }}",
+            "Department": "={{ $json.Department }}",
+            "DG": "={{ $json.DG }}",
+            "Institution": "={{ $json.Institution }}",
+            "Institution URL": "={{ $json['Institution URL'] }}",
+            "Country": "={{ $json.Country }}",
+            "Party": "={{ $json.Party }}",
+            "Party ExternalId": "={{ $json['Party ExternalId'] }}",
+            "Political group": "={{ $json['Political group'] }}",
+            "Political group ExternalId": "={{ $json['Political group ExternalId'] }}",
+            "Political / Administrative": "={{ $json['Political / Administrative'] }}",
+            "Email": "={{ $json.Email }}",
+            "Phone": "={{ $json.Phone }}",
+            "Category 1": "={{ $json['Category 1'] }}",
+            "Category ID1": "={{ $json['Category ID1'] }}",
+            "Category 2": "={{ $json['Category 2'] }}",
+            "Category ID2": "={{ $json['Category ID2'] }}",
+            "Category 3": "={{ $json['Category 3'] }}",
+            "Category ID3": "={{ $json['Category ID3'] }}",
+            "Category 4": "={{ $json['Category 4'] }}",
+            "Category ID4": "={{ $json['Category ID4'] }}",
+            "Category 5": "={{ $json['Category 5'] }}",
+            "Category ID5": "={{ $json['Category ID5'] }}",
+            "Profile URL": "={{ $json['Profile URL'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "ExternalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "FunctionType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Individual_ID_EUmatrix",
+              "displayName": "Individual_ID_EUmatrix",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "AccessibilityType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Role",
+              "displayName": "Role",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Level",
+              "displayName": "Level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Direct boss",
+              "displayName": "Direct boss",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DG",
+              "displayName": "DG",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "Institution",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Institution URL",
+              "displayName": "Institution URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Party",
+              "displayName": "Party",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Party ExternalId",
+              "displayName": "Party ExternalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Political group",
+              "displayName": "Political group",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Political group ExternalId",
+              "displayName": "Political group ExternalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Political / Administrative",
+              "displayName": "Political / Administrative",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 1",
+              "displayName": "Category 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID1",
+              "displayName": "Category ID1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 2",
+              "displayName": "Category 2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID2",
+              "displayName": "Category ID2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 3",
+              "displayName": "Category 3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID3",
+              "displayName": "Category ID3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 4",
+              "displayName": "Category 4",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID4",
+              "displayName": "Category ID4",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 5",
+              "displayName": "Category 5",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID5",
+              "displayName": "Category ID5",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Profile URL",
+              "displayName": "Profile URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "useAppend": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1920,
+        240
+      ],
+      "id": "03c893cb-6e05-4e14-8e8c-412c1a61e7b3",
+      "name": "Add History",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_SHEETS_ACCOUNT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "clear",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Commission_staff"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1661718989,
+          "mode": "list",
+          "cachedResultName": "Missing"
+        },
+        "keepFirstRow": true
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -912,
+        496
+      ],
+      "id": "fd540b2d-3745-4976-ac4d-9ccef75a574c",
+      "name": "Clear Missing",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_SHEETS_ACCOUNT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const first = $input.first();\nconst rows = (first && first.json && Array.isArray(first.json.missingRows)) ? first.json.missingRows : [];\nif (!rows.length) return [{ json: { _noMissing: true } }];\nreturn rows.map(r => ({ json: r }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -736,
+        496
+      ],
+      "id": "38dbdb37-5ab2-4cdd-988c-5d6767bac7ed",
+      "name": "Expand Missing Rows"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Commission_staff"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1661718989,
+          "mode": "list",
+          "cachedResultName": "Missing"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ExternalId": "={{ $json.ExternalId }}",
+            "FunctionType": "={{ $json.FunctionType }}",
+            "Individual_ID_EUmatrix": "={{ $json.Individual_ID_EUmatrix }}",
+            "AccessibilityType": "={{ $json.AccessibilityType }}",
+            "Name": "={{ $json.Name }}",
+            "Role": "={{ $json.Role }}",
+            "Level": "={{ $json.Level }}",
+            "Direct boss": "={{ $json['Direct boss'] }}",
+            "Department": "={{ $json.Department }}",
+            "DG": "={{ $json.DG }}",
+            "Institution": "={{ $json.Institution }}",
+            "Institution URL": "={{ $json['Institution URL'] }}",
+            "Country": "={{ $json.Country }}",
+            "Party": "={{ $json.Party }}",
+            "Party ExternalId": "={{ $json['Party ExternalId'] }}",
+            "Political group": "={{ $json['Political group'] }}",
+            "Political group ExternalId": "={{ $json['Political group ExternalId'] }}",
+            "Political / Administrative": "={{ $json['Political / Administrative'] }}",
+            "Email": "={{ $json.Email }}",
+            "Phone": "={{ $json.Phone }}",
+            "Category 1": "={{ $json['Category 1'] }}",
+            "Category ID1": "={{ $json['Category ID1'] }}",
+            "Category 2": "={{ $json['Category 2'] }}",
+            "Category ID2": "={{ $json['Category ID2'] }}",
+            "Category 3": "={{ $json['Category 3'] }}",
+            "Category ID3": "={{ $json['Category ID3'] }}",
+            "Category 4": "={{ $json['Category 4'] }}",
+            "Category ID4": "={{ $json['Category ID4'] }}",
+            "Category 5": "={{ $json['Category 5'] }}",
+            "Category ID5": "={{ $json['Category ID5'] }}",
+            "Profile URL": "={{ $json['Profile URL'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "ExternalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "FunctionType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Individual_ID_EUmatrix",
+              "displayName": "Individual_ID_EUmatrix",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "AccessibilityType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Role",
+              "displayName": "Role",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Level",
+              "displayName": "Level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Direct boss",
+              "displayName": "Direct boss",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DG",
+              "displayName": "DG",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YOUR_CREDENTIAL_ID",
+              "displayName": "Institution",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Institution URL",
+              "displayName": "Institution URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Party",
+              "displayName": "Party",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Party ExternalId",
+              "displayName": "Party ExternalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Political group",
+              "displayName": "Political group",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Political group ExternalId",
+              "displayName": "Political group ExternalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Political / Administrative",
+              "displayName": "Political / Administrative",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 1",
+              "displayName": "Category 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID1",
+              "displayName": "Category ID1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 2",
+              "displayName": "Category 2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID2",
+              "displayName": "Category ID2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 3",
+              "displayName": "Category 3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID3",
+              "displayName": "Category ID3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 4",
+              "displayName": "Category 4",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID4",
+              "displayName": "Category ID4",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category 5",
+              "displayName": "Category 5",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category ID5",
+              "displayName": "Category ID5",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Profile URL",
+              "displayName": "Profile URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "useAppend": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -480,
+        496
+      ],
+      "id": "86d3d933-7ada-4950-a755-c651daf48cb9",
+      "name": "Expand Missing",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_SHEETS_ACCOUNT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const LATEST_LINK  = \"https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit?gid=1607635265#gid=1607635265\";\nconst HISTORY_LINK = \"https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit?gid=851982518#gid=851982518\";\nconst NEW_LINK     = \"https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit?gid=668432384#gid=668432384\";\nconst MISSING_LINK = \"https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit?gid=1661718989#gid=1661718989\";\nconst RECIPIENTS = \"your@email.com,your@email.com,your@email.com,your@email.com\";\nfunction safeSummary(n) { try { return ($items(n)||[])[0]?.json||{}; } catch { return {}; } }\nfunction safeCount(n) { try { return ($items(n)||[]).length; } catch { return 0; } }\nfunction num(x) { const n=Number(x); return Number.isFinite(n)?n:0; }\nconst newSummary = safeSummary(\"Filter New\");\nconst latestCount = safeCount(\"Loop Over Items\");\nconst newCount = num(newSummary.newCount) || safeCount(\"Expand New Rows\") || safeCount(\"Add History\");\nconst historyBefore = safeCount(\"Read History\");\nconst historyCount = historyBefore + newCount;\nconst missingCount = Math.max(0, historyBefore - (latestCount - newCount));\nconst reportDate = new Date().toLocaleDateString(\"en-GB\");\nconst subject = `Who is Who Parsing - European Commission (COMMISSION) \u2014 Latest: ${latestCount} | New: ${newCount} | Missing: ${missingCount} | History: ${historyCount}`;\nfunction card(title, count, color, link, linkText) {\n  return `<div style=\"flex:1 1 310px;background:#111c33;border:1px solid #223154;border-radius:12px;padding:14px 16px;\"><div style=\"font-size:12px;color:${color};font-weight:700;letter-spacing:1px;\">${title}</div><div style=\"font-size:34px;font-weight:900;color:#e5e7eb;margin-top:6px;\">${count}</div><div style=\"margin-top:10px;\"><a href=\"${link}\" style=\"display:inline-block;padding:10px 14px;border-radius:10px;background:${color};color:#07101f;font-weight:900;text-decoration:none;font-size:13px;\">${linkText}</a></div></div>`;\n}\nconst html = `<div style=\"font-family:Arial,Helvetica,sans-serif;background:#0b1220;padding:22px;\"><div style=\"max-width:720px;margin:0 auto;background:#0f172a;border:1px solid #1f2a44;border-radius:14px;overflow:hidden;\"><div style=\"padding:22px 22px 18px 22px;background:linear-gradient(90deg,#3b82f6,#22c55e);\"><div style=\"font-size:26px;font-weight:800;color:#07101f;\">Who is Who Parsing - European Commission (COMMISSION)</div><div style=\"margin-top:6px;font-size:14px;color:#07101f;opacity:0.85;\">Automatic report for <b>${reportDate}</b></div></div><div style=\"padding:14px 22px 10px 22px;\"><div style=\"display:flex;gap:12px;flex-wrap:wrap;\">${card(\"LATEST SNAPSHOT\",latestCount,\"#60a5fa\",LATEST_LINK,\"Open LatestSnapshot\")}${card(\"HISTORY\",historyCount,\"#34d399\",HISTORY_LINK,\"Open History\")}${card(\"NEW ONLY\",newCount,\"#fbbf24\",NEW_LINK,\"Open New_Only\")}${card(\"MISSING\",missingCount,\"#f87171\",MISSING_LINK,\"Open Missing\")}</div></div><div style=\"padding:10px 22px 18px 22px;color:#cbd5e1;font-size:13px;line-height:1.5;\"><div style=\"font-weight:800;color:#e5e7eb;margin-bottom:6px;\">Data structure clarification</div><ul style=\"margin:8px 0 0 18px;padding:0;\"><li><b>LatestSnapshot</b> is cleared each run and repopulated with fresh results (current scope only).</li><li><b>History</b> accumulates all unique entries ever found (closest to total database).</li><li><b>New_Only</b> is cleared each run and rebuilt (LatestSnapshot not previously in History).</li><li><b>Missing</b> are entries in History not present in the current LatestSnapshot. Each entry includes a <b>Profile URL</b> for manual verification.</li></ul><div style=\"margin-top:14px;color:#94a3b8;\">Regards,<br/>Fahad</div></div></div></div>`;\nconst body = `Who is Who Parsing - European Commission (COMMISSION) (${reportDate}).\\n\\nLatestSnapshot: ${latestCount}\\nHistory: ${historyCount}\\nNew_Only: ${newCount}\\nMissing: ${missingCount}\\n\\nRegards,\\nFahad`;\nreturn [{ json: { subject, html, body, to: RECIPIENTS } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        496
+      ],
+      "id": "b51373b9-276c-4556-8d69-4bb8c3527f9f",
+      "name": "Admin Report"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        96,
+        496
+      ],
+      "id": "13609c85-ee42-4c7a-91c7-1ca013c48805",
+      "name": "Send a message",
+      "executeOnce": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gmail YOUR_GOOGLE_ACCOUNT"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1056,
+        16
+      ],
+      "id": "16ae9e5a-e4a3-45eb-a13a-85aac7444eb6",
+      "name": "Trigger"
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Init State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init State": {
+      "main": [
+        [
+          {
+            "node": "Clear LatestSnapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear LatestSnapshot": {
+      "main": [
+        [
+          {
+            "node": "Crawl Org Tree",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crawl Org Tree": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Fetch Persons",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Persons": {
+      "main": [
+        [
+          {
+            "node": "LatestSnapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LatestSnapshot": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read History": {
+      "main": [
+        [
+          {
+            "node": "Clean New",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean New": {
+      "main": [
+        [
+          {
+            "node": "Filter New",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter Missing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Missing": {
+      "main": [
+        [
+          {
+            "node": "Clear Missing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear Missing": {
+      "main": [
+        [
+          {
+            "node": "Expand Missing Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Missing Rows": {
+      "main": [
+        [
+          {
+            "node": "Expand Missing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Missing": {
+      "main": [
+        [
+          {
+            "node": "Admin Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Admin Report": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Expand New Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand New Rows": {
+      "main": [
+        [
+          {
+            "node": "Add New Only",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Add History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "DqFYKfaJ7jEvh3Hr",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "WIW - who is who"
+    }
+  ]
+}
